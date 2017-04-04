@@ -26,6 +26,9 @@ from estimate_pose import estimate_pose
 _LOGGER = _logging.getLogger(__name__)
 
 
+def column(matrix, i):
+    return [row[i] for row in matrix]
+ 
 def _npcircle(image, cx, cy, radius, color, transparency=0.0):
     """Draw a circle on an image using only numpy methods."""
     radius = int(radius)
@@ -42,42 +45,53 @@ def _npcircle(image, cx, cy, radius, color, transparency=0.0):
 # Command line interface.
 ###############################################################################
 
-@_click.command()
-@_click.argument('image_name',
-                 type=_click.Path(exists=True, dir_okay=True, readable=True))
-@_click.option('--out_name',
-               type=_click.Path(dir_okay=True, writable=True),
-               help='The result location to use. By default, use `image_name`_pose.npz.',
-               default=None)
-@_click.option('--scales',
-               type=_click.STRING,
-               help=('The scales to use, comma-separated. The most confident '
-                     'will be stored. Default: 1.'),
-               default='1.')
-@_click.option('--visualize',
-               type=_click.BOOL,
-               help='Whether to create a visualization of the pose. Default: True.',
-               default=True)
-@_click.option('--folder_image_suffix',
-               type=_click.STRING,
-               help=('The ending to use for the images to read, if a folder is '
-                     'specified. Default: .png.'),
-               default='.png')
-@_click.option('--use_cpu',
-               type=_click.BOOL,
-               is_flag=True,
-               help='Use CPU instead of GPU for predictions.',
-               default=False)
-@_click.option('--gpu',
-               type=_click.INT,
-               help='GPU device id.',
-               default=0)
+# @_click.command()
+# @_click.argument('image_name',
+#                  type=_click.Path(exists=True, dir_okay=True, readable=True))
+# @_click.option('--out_name',
+#                type=_click.Path(dir_okay=True, writable=True),
+#                help='The result location to use. By default, use `image_name`_pose.npz.',
+#                default=None)
+# @_click.option('--scales',
+#                type=_click.STRING,
+#                help=('The scales to use, comma-separated. The most confident '
+#                      'will be stored. Default: 1.'),
+#                default='1.')
+# @_click.option('--visualize',
+#                type=_click.BOOL,
+#                help='Whether to create a visualization of the pose. Default: True.',
+#                default=True)
+# @_click.option('--folder_image_suffix',
+#                type=_click.STRING,
+#                help=('The ending to use for the images to read, if a folder is '
+#                      'specified. Default: .png.'),
+#                default='.png')
+# @_click.option('--use_cpu',
+#                type=_click.BOOL,
+#                is_flag=True,
+#                help='Use CPU instead of GPU for predictions.',
+#                default=False)
+# @_click.option('--gpu',
+#                type=_click.INT,
+#                help='GPU device id.',
+#                default=0)
+
+def getAngle(a,b,c):
+    a = _np.array(a)
+    b = _np.array(b)
+    c = _np.array(c)
+    ba = b[0:2] - a[0:2] # normalization of vectors
+    bc = b[0:2] - c[0:2] # normalization of vectors
+    cosine_angle = _np.dot(ba, bc) / (_np.linalg.norm(ba) *_np.linalg.norm(bc))
+    angle = _np.arccos(cosine_angle)
+    return _np.degrees(angle)
+
 def predict_pose_from(image_name,
                       out_name=None,
                       scales='1.',
                       visualize=True,
-                      folder_image_suffix='.png',
-                      use_cpu=False,
+                      folder_image_suffix='.jpg',
+                      use_cpu=True,
                       gpu=0):
     """
     Load an image file, predict the pose and write it out.
@@ -120,6 +134,26 @@ def predict_pose_from(image_name,
         else:
             image = image[:, :, ::-1]    
         pose = estimate_pose(image, model_def, model_bin, scales)
+        print(pose)
+        """
+        0 Right ankle
+        1 Right knee
+        2 Right hip
+        3 Left hip
+        4 Left knee
+        5 Left ankle
+        6 Right wrist
+        7 Right elbow
+        8 Right shoulder
+        9 Left shoulder
+        10 Left elbow
+        11 Left wrist
+        12 Neck
+        13 Head top
+        """
+        target = open(out_name + '.txt', 'w')
+        target.write(str(getAngle(column(pose,9),column(pose,10), column(pose,11))))
+        target.close()
         _np.savez_compressed(out_name, pose=pose)
         if visualize:
             visim = image[:, :, ::-1].copy()
@@ -138,6 +172,12 @@ def predict_pose_from(image_name,
 
 
 if __name__ == '__main__':
-    _logging.basicConfig(level=_logging.INFO)
+    
     # pylint: disable=no-value-for-parameter
-    predict_pose_from()
+    predict_pose_from('./',
+                      out_name='./out1',
+                      scales='1.',
+                      visualize=True,
+                      folder_image_suffix='.jpg',
+                      use_cpu=True,
+                      gpu=0)
